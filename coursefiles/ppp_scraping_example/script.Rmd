@@ -1,0 +1,76 @@
+---
+title: "Links to PPP Loan Totals by State"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r maketable, echo=FALSE,warning=FALSE,message=FALSE}
+library(tidycensus)
+library(rvest)
+library(tidyverse)
+library(janitor)
+library(kableExtra)
+census_api_key("549950d36c22ff16455fe196bbbd01d63cfbe6cf")
+
+population_state<- get_acs(geography="state", variables=c("B01001_001"),geometry = FALSE, year=2019) %>%
+  clean_names() %>%
+  select(state = name,
+         population=estimate) 
+
+ppp_totals_by_state_url <- "https://projects.propublica.org/coronavirus/bailouts/"
+
+ppp_totals_by_state <- ppp_totals_by_state_url %>%
+  read_html() %>%
+  html_table()
+
+ppp_totals_by_state <- ppp_totals_by_state[[1]] %>%
+  clean_names() %>%
+  mutate(total_ppp_loans=parse_number(total)) %>%
+  select(state,total_ppp_loans) %>%
+  inner_join(population_state) %>%
+  mutate(clean_state = str_replace_all(tolower(state)," ","_"))
+
+state_list <- ppp_totals_by_state$clean_state
+
+#state_list <- state_list[[38]]
+
+```
+
+
+```{r runloop, eval=FALSE, echo=FALSE,warning=FALSE,message=FALSE}
+#```{r runloop, eval=TRUE, echo=FALSE,warning=FALSE,message=FALSE}
+
+# Swap comments to generate
+for (state_name in state_list) {
+  
+  indv_state <- ppp_totals_by_state %>%
+    filter(clean_state == state_name) %>%
+    select(-clean_state)
+  
+  indv_state
+  
+rmarkdown::render(input = "ppp_template.Rmd", 
+                  output_format = "html_document",
+                  output_file = paste0(state_name,".html"),
+                  output_dir = "states/")
+  
+}
+
+
+```
+
+```{r makelanding, eval=TRUE, echo=FALSE,warning=FALSE,message=FALSE}
+#```{r makelanding, eval=FALSE, echo=FALSE,warning=FALSE,message=FALSE}
+
+
+links_table <- ppp_totals_by_state %>%
+  mutate(url = paste0("https://smussenden.github.io/coursefiles/ppp_scraping_example/states/",clean_state,".html")) %>%
+  mutate(state_page_link = paste0("<a href='", url,"'>",state,"</a>")) %>%
+  select(state_page_link,url)
+
+kable(links_table,escape = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) 
+```
